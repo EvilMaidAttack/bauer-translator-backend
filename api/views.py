@@ -1,0 +1,45 @@
+from rest_framework import viewsets
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from django.db import transaction
+
+
+from api.azure_translate import AzureDocumentTranslator
+from api.models import TranslationJob
+from api.serializers import TranslationJobSerializer
+
+# Create your views here.
+class TranslationJobViewSet(viewsets.ModelViewSet):
+    queryset = TranslationJob.objects.all().order_by('-created_at')
+    serializer_class = TranslationJobSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def create(self, request, *args, **kwargs):
+        file = request.FILES.get('file')
+        target_lang = request.data.get('target_lang')
+        if not file or not target_lang:
+            return Response({"error": "File and target_lang are required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        az = AzureDocumentTranslator()
+        filename = file.name
+        
+        with transaction.atomic():
+            # 1 Upload file to Azure Blob Storage
+            source_blob_url, target_blob_url, operation_location = az.translate_single_doument(file, filename, target_lang)
+            job = TranslationJob.objects.create(
+                filename=filename,
+                target_lang=target_lang,
+                source_blob_url=source_blob_url,
+                target_container_url=target_blob_url, 
+                status="notStarted",
+                operation_location=operation_location 
+            )
+        return Response(TranslationJobSerializer(job).data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['get'])
+    def list_blobs(self, request):
+        az = AzureDocumentTranslator()
+        blobs = az.get_all_blobs_in_container('document-out')
+        return Response({"blobs": blobs}, status=status.HTTP_200_OK)
