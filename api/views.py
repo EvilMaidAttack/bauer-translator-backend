@@ -36,6 +36,8 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
                 status="notStarted",
                 operation_location=operation_location 
             )
+            az.get_operation_status(operation_location)
+            sas_url = az.build_sas_url(target_blob_url)
         return Response(TranslationJobSerializer(job).data, status=status.HTTP_201_CREATED)
     
     @action(detail=False, methods=['get'])

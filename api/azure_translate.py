@@ -1,7 +1,8 @@
 from urllib.parse import urlsplit
 import os
 from dotenv import load_dotenv
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
+from datetime import datetime, timedelta, timezone
 import requests
 load_dotenv(override=True)
 
@@ -11,6 +12,8 @@ class AzureDocumentTranslator():
         self.key = os.getenv('AZURE_TRANSLATION_KEY')
         self.container_in = os.getenv('AZURE_BLOB_CONTAINER_IN')
         self.container_out = os.getenv('AZURE_BLOB_CONTAINER_OUT')
+        self.account_name = os.getenv('AZURE_STORAGE_ACCOUNT_NAME')
+        self.storage_key = os.getenv('AZURE_STORAGE_ACCOUNT_KEY')
     
     def translate_single_doument(self, file, file_name: str, target_lang: str):
         print("Uploading to Azure Blob Storage...")
@@ -37,6 +40,33 @@ class AzureDocumentTranslator():
         container_client = blob_client.get_container_client(container_name)
         blobs = container_client.list_blobs()
         return [blob.name for blob in blobs]
+    
+    def get_operation_status(self, operation_location: str) -> dict:
+        headers = {'Ocp-Apim-Subscription-Key': self.key}
+        response = requests.get(operation_location, headers=headers)
+        response.raise_for_status()
+        print(f"Debug info: Operation status response: {response.json()}")
+        return response.json()
+    
+    def build_sas_url(self, blob_url:str, minutes_valid: int = 60) -> str:
+        parts = urlsplit(blob_url)
+        path = parts.path.lstrip('/')
+        container, blob_name = path.split('/', 1)
+        print(f"Debug info: parts={parts}, path={path}, container={container}, blob_name={blob_name}")
+        print(f"Generating SAS URL for blob {container}/{blob_name}")
+        expiry = datetime.now(timezone.utc) + timedelta(minutes=minutes_valid)
+        sas = generate_blob_sas(
+            account_name=self.account_name,
+            container_name=container,
+            blob_name=blob_name,
+            account_key=self.storage_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=expiry
+        )
+        sas_url = f"{parts.scheme}://{parts.netloc}/{container}/{blob_name}?{sas}"
+        print(f"SAS URL: {sas_url}")
+        return sas_url
+            
         
     
     def __upload_to_blob(self, file, name) -> str:
