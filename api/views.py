@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db import transaction
+import requests
 
 
 from api.azure_translate import AzureDocumentTranslator
@@ -36,8 +37,6 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
                 status="notStarted",
                 operation_location=operation_location 
             )
-            az.get_operation_status(operation_location)
-            sas_url = az.build_sas_url(target_blob_url)
         return Response(TranslationJobSerializer(job).data, status=status.HTTP_201_CREATED)
     
     @action(detail=False, methods=['get'])
@@ -45,3 +44,29 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
         az = AzureDocumentTranslator()
         blobs = az.get_all_blobs_in_container('document-out')
         return Response({"blobs": blobs}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'])
+    def status(self, request, pk=None):
+        job = self.get_object()
+        az = AzureDocumentTranslator()
+        try:
+            op = az.get_operation_status(job.operation_location)
+            azure_status = (op.get('status') or '').lower()
+            job.status = {
+                "notstarted": "notStarted",
+                "running": "running",
+                "cancelling": "running",
+                "succeeded": "succeeded",
+                "failed": "failed",
+                "cancelled": "canceled"
+            }.get(azure_status, job.status)
+
+            job.save()
+            data = TranslationJobSerializer(job).data
+            return Response(data, status=status.HTTP_200_OK)
+        
+        except requests.HTTPError as e:
+            job.status = "failed"
+            job.error_message = f"Azure polling error: {str(e)}"
+            job.save()
+            return Response(TranslationJobSerializer(job).data, status=status.HTTP_200_OK)
