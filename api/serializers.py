@@ -3,7 +3,7 @@ from rest_framework import serializers
 from urllib.parse import urlsplit
 
 from api.azure_translate import AzureDocumentTranslator
-from api.models import TranslationJob 
+from api.models import LanguageCode, TranslationJob 
 
 def normalize_target(code: str) -> str:
     return code.lower() if code else code
@@ -42,3 +42,10 @@ class TranslationJobSerializer(serializers.ModelSerializer):
     
     def get_target_name(self, obj):
         return obj.target_container_url.rsplit('/', 1)[-1]
+
+
+class LanguageCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LanguageCode
+        fields = ['id', 'code', 'name']
+        read_only_fields = ['id', 'code', 'name']

@@ -3,13 +3,15 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.mixins import ListModelMixin
+from rest_framework.viewsets import GenericViewSet
 from django.db import transaction
 import requests
 
 
 from api.azure_translate import AzureDocumentTranslator
-from api.models import TranslationJob
-from api.serializers import TranslationJobSerializer
+from api.models import LanguageCode, TranslationJob
+from api.serializers import LanguageCodeSerializer, TranslationJobSerializer
 
 # Create your views here.
 class TranslationJobViewSet(viewsets.ModelViewSet):
@@ -82,3 +84,8 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
             job.error_message = f"Azure polling error: {str(e)}"
             job.save()
             return Response(TranslationJobSerializer(job).data, status=status.HTTP_200_OK)
+        
+
+class LanguageCodeViewSet(ListModelMixin, GenericViewSet):
+    queryset = LanguageCode.objects.all().order_by('name')
+    serializer_class = LanguageCodeSerializer

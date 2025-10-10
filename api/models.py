@@ -13,3 +13,8 @@ class TranslationJob(models.Model):
     error_message = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+class LanguageCode(models.Model):
+    code = models.CharField(max_length=16, unique=True)
+    name = models.CharField(max_length=128)
+    
