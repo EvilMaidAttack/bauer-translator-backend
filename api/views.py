@@ -49,10 +49,19 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
     def status(self, request, pk=None):
         job = self.get_object()
         az = AzureDocumentTranslator()
+
+        # No jumping back in status - useful for UI display
+        progress_order = ["notStarted", "running", "succeeded", "failed", "canceled"]
+        def is_monotone(old_status, new_status):
+            try:
+                return progress_order.index(new_status) >= progress_order.index(old_status)
+            except ValueError:
+                return False
+            
         try:
             op = az.get_operation_status(job.operation_location)
             azure_status = (op.get('status') or '').lower()
-            job.status = {
+            mapped = {
                 "notstarted": "notStarted",
                 "running": "running",
                 "cancelling": "running",
@@ -60,6 +69,9 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
                 "failed": "failed",
                 "cancelled": "canceled"
             }.get(azure_status, job.status)
+
+            if is_monotone(job.status, mapped):
+                job.status = mapped
 
             job.save()
             data = TranslationJobSerializer(job).data
