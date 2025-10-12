@@ -18,6 +18,9 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
     queryset = TranslationJob.objects.all().order_by('-created_at')
     serializer_class = TranslationJobSerializer
     parser_classes = [MultiPartParser, FormParser]
+
+    def get_serializer_context(self):
+        return {'profile_id': self.request.user.id}
     
     def create(self, request, *args, **kwargs):
         file = request.FILES.get('file')
@@ -37,7 +40,8 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
                 source_blob_url=source_blob_url,
                 target_container_url=target_blob_url, 
                 status="notStarted",
-                operation_location=operation_location 
+                operation_location=operation_location,
+                profile=request.user.profile
             )
         return Response(TranslationJobSerializer(job).data, status=status.HTTP_201_CREATED)
     
