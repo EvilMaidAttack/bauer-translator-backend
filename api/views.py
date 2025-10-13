@@ -11,20 +11,26 @@ import requests
 
 
 from api.azure_translate import AzureDocumentTranslator
-from api.models import LanguageCode, TranslationJob
+from api.models import LanguageCode, Profile, TranslationJob
 from api.serializers import LanguageCodeSerializer, TranslationJobSerializer
 
-#TODO: Only get translations according to logged in user, not all translations
 
 # Create your views here.
 class TranslationJobViewSet(viewsets.ModelViewSet):
-    queryset = TranslationJob.objects.all().order_by('-created_at')
     serializer_class = TranslationJobSerializer
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]
 
     def get_serializer_context(self):
         return {'profile_id': self.request.user.id}
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return TranslationJob.objects.all().order_by("-created_at")[:5]
+        profile_id = Profile.objects.only("id").get(user_id=user.id)
+        return TranslationJob.objects.filter(profile_id=profile_id).order_by("-created_at")[:5]
+  
     
     def create(self, request, *args, **kwargs):
         file = request.FILES.get('file')
