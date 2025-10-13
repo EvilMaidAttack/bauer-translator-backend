@@ -17,10 +17,10 @@ class TranslationJobSerializer(serializers.ModelSerializer):
         model = TranslationJob
         fields = ['id', 'filename', 'target_lang', 'source_blob_url', 'target_container_url',
                     'operation_location', 'status', 'error_message', 'created_at', 'updated_at',
-                    'download_url', 'display_status', 'target_name']
+                    'download_url', 'display_status', 'target_name', 'profile']
         read_only_fields = ['id', 'source_blob_url', 'target_container_url', 'operation_location', 
                             'status', 'error_message', 'created_at', 'updated_at', 'download_url',
-                            'display_status', 'target_name']
+                            'display_status', 'target_name', 'profile']
         
     
     def get_download_url(self, obj):

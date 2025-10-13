@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.mixins import ListModelMixin
 from rest_framework.viewsets import GenericViewSet
+from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 import requests
 
@@ -13,11 +14,14 @@ from api.azure_translate import AzureDocumentTranslator
 from api.models import LanguageCode, TranslationJob
 from api.serializers import LanguageCodeSerializer, TranslationJobSerializer
 
+#TODO: Only get translations according to logged in user, not all translations
+
 # Create your views here.
 class TranslationJobViewSet(viewsets.ModelViewSet):
     queryset = TranslationJob.objects.all().order_by('-created_at')
     serializer_class = TranslationJobSerializer
     parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]
 
     def get_serializer_context(self):
         return {'profile_id': self.request.user.id}
@@ -93,3 +97,4 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
 class LanguageCodeViewSet(ListModelMixin, GenericViewSet):
     queryset = LanguageCode.objects.all().order_by('name')
     serializer_class = LanguageCodeSerializer
+    permission_classes = [IsAuthenticated]
