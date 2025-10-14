@@ -7,14 +7,16 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
-from django.utils import timezone
+from django.utils import timezone as django_timezone
 import requests
-from datetime import timedelta
+from datetime import  datetime, timedelta, timezone
 
 
 from api.azure_translate import AzureDocumentTranslator
 from api.models import LanguageCode, Profile, TranslationJob
 from api.serializers import LanguageCodeSerializer, TranslationJobSerializer
+
+SAS_TTL_MINUTES = 60
 
 
 # Create your views here.
@@ -28,7 +30,7 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        day_start = timezone.now() - timedelta(days=2)
+        day_start = django_timezone.now() - timedelta(days=1)
         if user.is_staff:
             return TranslationJob.objects.filter(created_at__gte=day_start).order_by("-created_at")
         profile_id = Profile.objects.only("id").get(user_id=user.id)
@@ -90,6 +92,13 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
 
             if is_monotone(job.status, mapped):
                 job.status = mapped
+                
+                # Generate SAS only once when first succeeded and not already existing
+                if job.status == "succeeded" and not job.download_url:
+                    expiry = (datetime.now(timezone.utc) + timedelta(minutes=SAS_TTL_MINUTES)).isoformat()
+                    job.download_expires_at = expiry
+                    az = AzureDocumentTranslator()
+                    job.download_url = az.build_sas_url(job.target_container_url, minutes_valid=SAS_TTL_MINUTES)
 
             job.save()
             data = TranslationJobSerializer(job).data
