@@ -7,7 +7,9 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
+from django.utils import timezone
 import requests
+from datetime import timedelta
 
 
 from api.azure_translate import AzureDocumentTranslator
@@ -26,10 +28,11 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
+        day_start = timezone.now() - timedelta(days=2)
         if user.is_staff:
-            return TranslationJob.objects.all().order_by("-created_at")[:5]
+            return TranslationJob.objects.filter(created_at__gte=day_start).order_by("-created_at")
         profile_id = Profile.objects.only("id").get(user_id=user.id)
-        return TranslationJob.objects.filter(profile_id=profile_id).order_by("-created_at")[:5]
+        return TranslationJob.objects.filter(profile_id=profile_id, created_at__gte=day_start).order_by("-created_at")
   
     
     def create(self, request, *args, **kwargs):
@@ -42,7 +45,6 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
         filename = file.name
         
         with transaction.atomic():
-            # 1 Upload file to Azure Blob Storage
             source_blob_url, target_blob_url, operation_location = az.translate_single_doument(file, filename, target_lang)
             job = TranslationJob.objects.create(
                 filename=filename,
