@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 import requests
 load_dotenv(override=True)
 
+# TODO: Translation fails when target_document blob already exists in document-out container => Find a fix
+
 class AzureDocumentTranslator():
     def __init__(self):
         self.endpoint = os.getenv('AZURE_TRANSLATION_ENDPOINT')
@@ -48,12 +50,10 @@ class AzureDocumentTranslator():
         print(f"Debug info: Operation status response: {response.json()}")
         return response.json()
     
-    def build_sas_url(self, blob_url:str, minutes_valid: int = 60) -> str:
+    def build_sas_url(self, blob_url:str, minutes_valid: int = 60) -> tuple[str, datetime]:
         parts = urlsplit(blob_url)
         path = parts.path.lstrip('/')
         container, blob_name = path.split('/', 1)
-        print(f"Debug info: parts={parts}, path={path}, container={container}, blob_name={blob_name}")
-        print(f"Generating SAS URL for blob {container}/{blob_name}")
         expiry = datetime.now(timezone.utc) + timedelta(minutes=minutes_valid)
         sas = generate_blob_sas(
             account_name=self.account_name,
@@ -64,8 +64,8 @@ class AzureDocumentTranslator():
             expiry=expiry
         )
         sas_url = f"{parts.scheme}://{parts.netloc}/{container}/{blob_name}?{sas}"
-        print(f"SAS URL: {sas_url}")
-        return sas_url
+        #print(f"SAS URL: {sas_url} - EXPIRES at {expiry}")
+        return sas_url, expiry
             
         
     

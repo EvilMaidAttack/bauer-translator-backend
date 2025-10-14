@@ -20,7 +20,7 @@ class TranslationJob(models.Model):
     error_message = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    download_url = models.URLField(blank=True, default="")
+    download_url = models.URLField(max_length=2048, blank=True, default="")
     download_expires_at = models.DateTimeField(null=True, blank=True)
 
 class LanguageCode(models.Model):

@@ -95,11 +95,8 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
                 
                 # Generate SAS only once when first succeeded and not already existing
                 if job.status == "succeeded" and not job.download_url:
-                    expiry = (datetime.now(timezone.utc) + timedelta(minutes=SAS_TTL_MINUTES)).isoformat()
-                    job.download_expires_at = expiry
                     az = AzureDocumentTranslator()
-                    job.download_url = az.build_sas_url(job.target_container_url, minutes_valid=SAS_TTL_MINUTES)
-
+                    job.download_url, job.download_expires_at = az.build_sas_url(job.target_container_url, minutes_valid=SAS_TTL_MINUTES)
             job.save()
             data = TranslationJobSerializer(job).data
             return Response(data, status=status.HTTP_200_OK)
