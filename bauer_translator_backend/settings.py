@@ -158,7 +158,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # allow Angular dev origin
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:4200",
+    "http://localhost:4200",  # local dev
+    "https://ambitious-flower-0a764eb03.1.azurestaticapps.net",  # production Angular app
 ]
 
 AUTH_USER_MODEL = "core.User"
