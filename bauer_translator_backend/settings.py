@@ -35,6 +35,11 @@ ALLOWED_HOSTS = ["b-translator-prod.azurewebsites.net",
                  "localhost",
                  "127.0.0.1"]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://b-translator-prod.azurewebsites.net",
+    "https://ambitious-flower-0a764eb03.1.azurestaticapps.net"
+]
+
 
 # Application definition
 
