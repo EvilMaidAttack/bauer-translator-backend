@@ -57,9 +57,9 @@ INSTALLED_APPS = [
     "core"
 ]
 
-MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
+MIDDLEWARE = [,
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -161,6 +161,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:4200",  # local dev
     "https://ambitious-flower-0a764eb03.1.azurestaticapps.net",  # production Angular app
 ]
+
+CORS_ALLOW_CREDENTIALS = True
 
 AUTH_USER_MODEL = "core.User"
 
