@@ -12,7 +12,7 @@ import requests
 from datetime import  datetime, timedelta, timezone
 
 
-from api.azure_translate import AzureDocumentTranslator
+from api.azure_ai import AzureDocumentTranslator
 from api.models import LanguageCode, Profile, TranslationJob
 from api.serializers import LanguageCodeSerializer, TranslationJobSerializer
 
