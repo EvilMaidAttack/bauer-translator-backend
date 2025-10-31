@@ -12,9 +12,9 @@ import requests
 from datetime import  datetime, timedelta, timezone
 
 
-from api.azure_ai import AzureDocumentTranslator
+from api.azure_ai import AzureDocumentTranslator, AzurePIIRedaction
 from api.models import LanguageCode, Profile, TranslationJob
-from api.serializers import LanguageCodeSerializer, TranslationJobSerializer
+from api.serializers import LanguageCodeSerializer, RedactionJobSerializer, TranslationJobSerializer
 
 SAS_TTL_MINUTES = 60
 
@@ -112,3 +112,29 @@ class LanguageCodeViewSet(ListModelMixin, GenericViewSet):
     queryset = LanguageCode.objects.all().order_by('name')
     serializer_class = LanguageCodeSerializer
     permission_classes = [IsAuthenticated]
+
+
+class PIIRedactionViewSet(viewsets.ModelViewSet):
+    serializer_class = RedactionJobSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        day_start = django_timezone.now() - timedelta(days=1)
+        if user.is_staff:
+            return RedactionJobSerializer.objects.filter(created_at__gte=day_start).order_by("-created_at")
+        profile_id = Profile.objects.only("id").get(user_id=user.id)
+        return RedactionJobSerializer.objects.filter(profile_id=profile_id, created_at__gte=day_start).order_by("-created_at")
+    
+    def create(self, request, *args, **kwargs):
+        file = request.FILES.get('file')
+        target_lang = request.data.get('target_lang')
+        if not file or not target_lang:
+            return Response({"error": "File and target_lang are required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        az = AzurePIIRedaction()
+        filename = file.name
+
+        with transaction.atomic():
+            ... # Implementation for PII redaction job creation goes here

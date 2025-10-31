@@ -40,3 +40,27 @@ class LanguageCodeSerializer(serializers.ModelSerializer):
         model = LanguageCode
         fields = ['id', 'code', 'name']
         read_only_fields = ['id', 'code', 'name']
+
+
+class RedactionJobSerializer(serializers.ModelSerializer):    
+    display_status = serializers.SerializerMethodField()
+            
+    class Meta:
+        model = TranslationJob
+        fields = ['id', 'filename', 'source_blob_url', 'target_blob_url',
+                    'status', 'error_message', 'created_at', 'updated_at',
+                    'display_status', 'profile',
+                    'download_expires_at', 'download_url']
+        read_only_fields = ['id', 'source_blob_url', 'target_blob_url', 
+                            'status', 'error_message', 'created_at', 'updated_at',
+                            'display_status', 'profile', 'download_expires_at', 'download_url']       
+
+    def get_display_status(self, obj):
+        status_map = {
+            "notStarted": "Queued",
+            "running": "In Progress",
+            "succeeded": "Completed",
+            "failed": "Failed",
+            "canceled": "Canceled"
+        }
+        return status_map.get(obj.status, obj.status)

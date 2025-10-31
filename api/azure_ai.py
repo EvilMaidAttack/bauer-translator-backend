@@ -99,7 +99,7 @@ class AzureDocumentTranslator():
         }
         
 
-class AzurePIIRedaction:
+class AzurePIIRedaction():
     def __init__(self):
         self.language_endpoint = os.getenv("AZURE_LANGUAGE_ENDPOINT")
         self.language_key = os.getenv("AZURE_LANGUAGE_KEY")
@@ -175,6 +175,7 @@ class AzurePIIRedaction:
             return
         operation_location = response.headers.get("Operation-Location")
         logging.info(f"Redaction job submitted successfully. Operation Location: {operation_location}")
+        return operation_location
         
         
         
