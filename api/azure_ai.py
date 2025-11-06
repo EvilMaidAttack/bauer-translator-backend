@@ -101,12 +101,12 @@ class AzureDocumentTranslator():
 
 class AzurePIIRedaction():
     def __init__(self):
-        self.language_endpoint = os.getenv("AZURE_LANGUAGE_ENDPOINT")
-        self.language_key = os.getenv("AZURE_LANGUAGE_KEY")
-        self.container_in = os.getenv("AZURE_STORAGE_ACCOUNT_CONTAINER_IN")
-        self.container_out = os.getenv("AZURE_STORAGE_ACCOUNT_CONTAINER_OUT")
-        self.region = os.getenv("AZURE_LANGUAGE_REGION")
-        self.connection_string = os.getenv("AZURE_STORAGE_ACCOUNT_CONNECTION_STRING")
+        self.language_endpoint = os.getenv("PII_LANGUAGE_ENDPOINT")
+        self.language_key = os.getenv("PII_LANGUAGE_KEY")
+        self.container_in = os.getenv("PII_STORAGE_ACCOUNT_CONTAINER_IN")
+        self.container_out = os.getenv("PII_STORAGE_ACCOUNT_CONTAINER_OUT")
+        self.region = os.getenv("PII_LANGUAGE_REGION")
+        self.connection_string = os.getenv("PII_STORAGE_ACCOUNT_CONNECTION_STRING")
     
     def __get_payload(self, source_blob_url, target_container_url, language):
         payload = {
@@ -152,19 +152,27 @@ class AzurePIIRedaction():
             "Ocp-Apim-Subscription-Region": self.region  
         }
         return headers
+    
+    def __upload_to_blob(self, file, name) -> str:
+        blob_client = BlobServiceClient.from_connection_string(os.getenv('AZURE_STORAGE_ACCOUNT_CONNECTION_STRING'))
+        container_client = blob_client.get_container_client(self.container_in)
+        blob = container_client.upload_blob(name = name, data = file, overwrite = True)  
+        return blob.url
 
-    def perform_redaction(self, blob_name, language):
+
+    def perform_redaction(self, file, blob_name, language):
         logging.info(f"Starting PII redaction for blob: {blob_name}")
+        input_blob_url = self.__upload_to_blob(file, blob_name)
+        logging.info(f"Uploaded blob to: {input_blob_url}")
+        
         blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
-        input_blob = blob_service_client.get_blob_client(container = self.container_in, blob=blob_name)
         output_container = blob_service_client.get_container_client(self.container_out)
-        logging.info(f"Input Blob URL: {input_blob.url}")
         logging.info(f"Output Container URL: {output_container.url}")
         
         logging.info("Preparing request payload and headers...")
         request_url = f"{self.language_endpoint}/language/analyze-documents/jobs?api-version=2024-11-15-preview"
         payload = self.__get_payload(
-            source_blob_url=input_blob.url,
+            source_blob_url=input_blob_url,
             target_container_url=output_container.url,
             language=language
         )
@@ -175,7 +183,7 @@ class AzurePIIRedaction():
             return
         operation_location = response.headers.get("Operation-Location")
         logging.info(f"Redaction job submitted successfully. Operation Location: {operation_location}")
-        return operation_location
+        return input_blob_url, operation_location
         
         
         

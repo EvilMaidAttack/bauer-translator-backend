@@ -13,7 +13,7 @@ from datetime import  datetime, timedelta, timezone
 
 
 from api.azure_ai import AzureDocumentTranslator, AzurePIIRedaction
-from api.models import LanguageCode, Profile, TranslationJob
+from api.models import LanguageCode, Profile, RedactionJob, TranslationJob
 from api.serializers import LanguageCodeSerializer, RedactionJobSerializer, TranslationJobSerializer
 
 SAS_TTL_MINUTES = 60
@@ -127,14 +127,23 @@ class PIIRedactionViewSet(viewsets.ModelViewSet):
         profile_id = Profile.objects.only("id").get(user_id=user.id)
         return RedactionJobSerializer.objects.filter(profile_id=profile_id, created_at__gte=day_start).order_by("-created_at")
     
+    
     def create(self, request, *args, **kwargs):
         file = request.FILES.get('file')
-        target_lang = request.data.get('target_lang')
-        if not file or not target_lang:
-            return Response({"error": "File and target_lang are required."}, status=status.HTTP_400_BAD_REQUEST)
+        document_lang = request.data.get('document_lang') # In Frontend we have to make sure this is provided
+        if not file or not document_lang:
+            return Response({"error": "File and document_lang are required."}, status=status.HTTP_400_BAD_REQUEST)
         
         az = AzurePIIRedaction()
         filename = file.name
 
         with transaction.atomic():
-            ... # Implementation for PII redaction job creation goes here
+            source_blob_url, operation_location = az.perform_redaction(file, filename, document_lang)
+            job = RedactionJob.objects.create(
+                filename=filename,
+                source_blob_url=source_blob_url,
+                status="notStarted",
+                operation_location=operation_location,
+                profile=request.user.profile
+            )
+        return Response(RedactionJobSerializer(job).data, status=status.HTTP_201_CREATED)
