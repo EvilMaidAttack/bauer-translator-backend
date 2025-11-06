@@ -107,7 +107,34 @@ class AzurePIIRedaction():
         self.container_out = os.getenv("PII_STORAGE_ACCOUNT_CONTAINER_OUT")
         self.region = os.getenv("PII_LANGUAGE_REGION")
         self.connection_string = os.getenv("PII_STORAGE_ACCOUNT_CONNECTION_STRING")
-    
+
+
+    def perform_redaction(self, file, blob_name, language):
+        logging.info(f"Starting PII redaction for blob: {blob_name}")
+        input_blob_url = self.__upload_to_blob(file, blob_name)
+        logging.info(f"Uploaded blob to: {input_blob_url}")
+        
+        blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
+        output_container = blob_service_client.get_container_client(self.container_out)
+        logging.info(f"Output Container URL: {output_container.url}")
+        
+        logging.info("Preparing payload and headers for http request...")
+        request_url = f"{self.language_endpoint}/language/analyze-documents/jobs?api-version=2024-11-15-preview"
+        payload = self.__get_payload(
+            source_blob_url=input_blob_url,
+            target_container_url=output_container.url,
+            language=language
+        )
+        headers = self.__get_headers()
+        response = requests.post(url=request_url, headers=headers, json=payload)
+        if response.status_code != 202:
+            logging.error(f"Failed to submit redaction job: {response.status_code} - {response.text}")
+            return
+        operation_location = response.headers.get("Operation-Location")
+        logging.info(f"Redaction job submitted successfully. Operation Location: {operation_location}")
+        return input_blob_url, operation_location
+
+
     def __get_payload(self, source_blob_url, target_container_url, language):
         payload = {
             "displayName": "Document PII Redaction example",
@@ -143,7 +170,8 @@ class AzurePIIRedaction():
             ]
         }
         return payload
-    
+
+
     def __get_headers(self):
         headers = {
             "Ocp-Apim-Subscription-Key": self.language_key,
@@ -153,37 +181,12 @@ class AzurePIIRedaction():
         }
         return headers
     
+
     def __upload_to_blob(self, file, name) -> str:
-        blob_client = BlobServiceClient.from_connection_string(os.getenv('AZURE_STORAGE_ACCOUNT_CONNECTION_STRING'))
+        blob_client = BlobServiceClient.from_connection_string(self.connection_string)
         container_client = blob_client.get_container_client(self.container_in)
         blob = container_client.upload_blob(name = name, data = file, overwrite = True)  
         return blob.url
-
-
-    def perform_redaction(self, file, blob_name, language):
-        logging.info(f"Starting PII redaction for blob: {blob_name}")
-        input_blob_url = self.__upload_to_blob(file, blob_name)
-        logging.info(f"Uploaded blob to: {input_blob_url}")
-        
-        blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
-        output_container = blob_service_client.get_container_client(self.container_out)
-        logging.info(f"Output Container URL: {output_container.url}")
-        
-        logging.info("Preparing request payload and headers...")
-        request_url = f"{self.language_endpoint}/language/analyze-documents/jobs?api-version=2024-11-15-preview"
-        payload = self.__get_payload(
-            source_blob_url=input_blob_url,
-            target_container_url=output_container.url,
-            language=language
-        )
-        headers = self.__get_headers()
-        response = requests.post(url=request_url, headers=headers, json=payload)
-        if response.status_code != 202:
-            logging.error(f"Failed to submit redaction job: {response.status_code} - {response.text}")
-            return
-        operation_location = response.headers.get("Operation-Location")
-        logging.info(f"Redaction job submitted successfully. Operation Location: {operation_location}")
-        return input_blob_url, operation_location
         
         
         

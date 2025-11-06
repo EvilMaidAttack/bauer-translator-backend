@@ -102,6 +102,7 @@ typing_inspect
 tzdata
 urllib3==2.2.2
 wheel==0.43.0
+whitenoise==6.11.0
 win_inet_pton
 xxhash
 yarl
