@@ -215,7 +215,10 @@ class AzurePIIRedaction():
                         },
                         "piiCategories": [
                             "Person",
-                            "Organization"
+                            "Organization",
+                            "PhoneNumber",
+                            "Email",
+                            "Address",
                         ],
                         "excludeExtractionData": False
                     }
