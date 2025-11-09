@@ -98,6 +98,33 @@ class AzureDocumentTranslator():
             ]
         }
         
+# TODO: New class to detect language from a given document => Then use in redaction
+class AzureLanguageDetector():
+    def __init__(self):
+        self.endpoint = os.getenv("PII_LANGUAGE_ENDPOINT")
+        self.key = os.getenv("PII_LANGUAGE_KEY")
+        self.region = os.getenv("PII_LANGUAGE_REGION")
+    
+    # TODO: this only works synchronously for text only => we need async for docs
+    def __get_payload(self):
+        payload = payload = {
+            "kind": "LanguageDetection",
+            "parameters": {
+                "modelVersion": "latest"
+            },
+            "analysisInput": {
+                "documents": [
+                    {
+                        "id": "1",
+                        "text": "This is a document written in English."
+                    }
+                ]
+            }
+        }
+
+    
+    
+
 
 class AzurePIIRedaction():
     def __init__(self):
