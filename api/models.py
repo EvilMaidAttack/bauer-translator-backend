@@ -35,6 +35,7 @@ class RedactionJob(models.Model):
     filename = models.CharField(max_length=256)
     source_blob_url = models.URLField(max_length=2048)
     target_blob_url = models.URLField(max_length=2048, null=True, blank=True)  
+    operation_location = models.URLField(max_length=2048) 
     status = models.CharField(max_length=32, default="notStarted")  # notStarted|running|succeeded|failed|canceled
     error_message = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)

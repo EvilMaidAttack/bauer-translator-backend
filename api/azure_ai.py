@@ -107,6 +107,8 @@ class AzurePIIRedaction():
         self.container_out = os.getenv("PII_STORAGE_ACCOUNT_CONTAINER_OUT")
         self.region = os.getenv("PII_LANGUAGE_REGION")
         self.connection_string = os.getenv("PII_STORAGE_ACCOUNT_CONNECTION_STRING")
+        self.account_name = os.getenv("PII_STORAGE_ACCOUNT_NAME")
+        self.storage_key = os.getenv("PII_STORAGE_ACCOUNT_KEY")
 
 
     def perform_redaction(self, file, blob_name, language):
@@ -133,6 +135,57 @@ class AzurePIIRedaction():
         operation_location = response.headers.get("Operation-Location")
         logging.info(f"Redaction job submitted successfully. Operation Location: {operation_location}")
         return input_blob_url, operation_location
+    
+    def get_operation_status(self, operation_location: str) -> dict:
+        headers = {'Ocp-Apim-Subscription-Key': self.language_key}
+        response = requests.get(operation_location, headers=headers)
+        response.raise_for_status()
+        print(f"Debug info: Operation status response: {response.json()}")
+        return response.json()
+    
+    def get_target_blob_url(self, operation_status: dict) -> str:
+        try:
+            tasks = operation_status.get("tasks", {}).get("items", [])
+            if tasks:
+                first_item = tasks[0]
+                results = first_item.get("results", {})
+                docs = results.get("documents", [])
+                if docs:
+                    # Pick first document target that ends with '.pdf'
+                    targets = docs[0].get("targets", [])
+                    pdf_target = next(
+                        (
+                            t.get("location")
+                            for t in targets
+                            if t.get("location", "").lower().endswith(".pdf")
+                        ),
+                        None,
+                    )
+                    if pdf_target:
+                        logging.info(f"Found target PDF URL: {pdf_target}")
+                        return pdf_target
+            logging.warning("No target PDF URL found in operation status.")
+        except Exception as e:
+            logging.exception(f"Error parsing Azure redaction result: {str(e)}")
+
+
+    
+    def build_sas_url(self, blob_url:str, minutes_valid: int = 60) -> tuple[str, datetime]:
+        parts = urlsplit(blob_url)
+        path = parts.path.lstrip('/')
+        container, blob_name = path.split('/', 1)
+        expiry = datetime.now(timezone.utc) + timedelta(minutes=minutes_valid)
+        sas = generate_blob_sas(
+            account_name=self.account_name,
+            container_name=container,
+            blob_name=blob_name,
+            account_key=self.storage_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=expiry
+        )
+        sas_url = f"{parts.scheme}://{parts.netloc}/{container}/{blob_name}?{sas}"
+        #print(f"SAS URL: {sas_url} - EXPIRES at {expiry}")
+        return sas_url, expiry
 
 
     def __get_payload(self, source_blob_url, target_container_url, language):

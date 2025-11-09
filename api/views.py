@@ -123,9 +123,9 @@ class PIIRedactionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         day_start = django_timezone.now() - timedelta(days=1)
         if user.is_staff:
-            return RedactionJobSerializer.objects.filter(created_at__gte=day_start).order_by("-created_at")
+            return RedactionJob.objects.filter(created_at__gte=day_start).order_by("-created_at")
         profile_id = Profile.objects.only("id").get(user_id=user.id)
-        return RedactionJobSerializer.objects.filter(profile_id=profile_id, created_at__gte=day_start).order_by("-created_at")
+        return RedactionJob.objects.filter(profile_id=profile_id, created_at__gte=day_start).order_by("-created_at")
     
     
     def create(self, request, *args, **kwargs):
@@ -147,3 +147,47 @@ class PIIRedactionViewSet(viewsets.ModelViewSet):
                 profile=request.user.profile
             )
         return Response(RedactionJobSerializer(job).data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['get'])
+    def status(self, request, pk=None):
+        job = self.get_object()
+        az = AzurePIIRedaction()
+
+        # No jumping back in status - useful for UI display
+        progress_order = ["notStarted", "running", "succeeded", "failed", "canceled"]
+        def is_monotone(old_status, new_status):
+            try:
+                return progress_order.index(new_status) >= progress_order.index(old_status)
+            except ValueError:
+                return False
+            
+        try:
+            op = az.get_operation_status(job.operation_location)
+            azure_status = (op.get('status') or '').lower()
+            mapped = {
+                "notstarted": "notStarted",
+                "running": "running",
+                "cancelling": "running",
+                "succeeded": "succeeded",
+                "failed": "failed",
+                "cancelled": "canceled"
+            }.get(azure_status, job.status)
+
+            if is_monotone(job.status, mapped):
+                job.status = mapped
+                
+                # Generate SAS only once when first succeeded and not already existing
+                if job.status == "succeeded" and not job.download_url:
+                    target_blob_url = az.get_target_blob_url(op)
+                    job.target_blob_url = target_blob_url
+                    job.download_url, job.download_expires_at = az.build_sas_url(job.target_blob_url, minutes_valid=SAS_TTL_MINUTES)
+            job.save()
+            data = RedactionJobSerializer(job).data
+            return Response(data, status=status.HTTP_200_OK)
+        
+        except requests.HTTPError as e:
+            job.status = "failed"
+            job.error_message = f"Azure polling error: {str(e)}"
+            job.save()
+            return Response(RedactionJobSerializer(job).data, status=status.HTTP_200_OK)
+

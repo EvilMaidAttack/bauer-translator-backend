@@ -2,7 +2,7 @@ from django.conf import settings
 from rest_framework import serializers
 from urllib.parse import urlsplit
 
-from api.models import LanguageCode, TranslationJob 
+from api.models import LanguageCode, RedactionJob, TranslationJob 
 
 def normalize_target(code: str) -> str:
     return code.lower() if code else code
@@ -46,13 +46,13 @@ class RedactionJobSerializer(serializers.ModelSerializer):
     display_status = serializers.SerializerMethodField()
             
     class Meta:
-        model = TranslationJob
+        model = RedactionJob
         fields = ['id', 'filename', 'source_blob_url', 'target_blob_url',
-                    'status', 'error_message', 'created_at', 'updated_at',
+                    'status', 'operation_location', 'error_message', 'created_at', 'updated_at',
                     'display_status', 'profile',
                     'download_expires_at', 'download_url']
         read_only_fields = ['id', 'source_blob_url', 'target_blob_url', 
-                            'status', 'error_message', 'created_at', 'updated_at',
+                            'status', 'operation_location', 'error_message', 'created_at', 'updated_at',
                             'display_status', 'profile', 'download_expires_at', 'download_url']       
 
     def get_display_status(self, obj):
