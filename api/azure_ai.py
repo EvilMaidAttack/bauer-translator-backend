@@ -243,7 +243,6 @@ class AzurePIIRedaction():
                         "piiCategories": [
                             "Person",
                             "Organization",
-                            "PhoneNumber",
                             "Email",
                             "Address",
                         ],
