@@ -2,7 +2,7 @@ from django.conf import settings
 from rest_framework import serializers
 from urllib.parse import urlsplit
 
-from api.models import LanguageCode, RedactionJob, TranslationJob 
+from api.models import LanguageCode, Profile, RedactionJob, TranslationJob 
 
 def normalize_target(code: str) -> str:
     return code.lower() if code else code
@@ -70,3 +70,10 @@ class RedactionJobSerializer(serializers.ModelSerializer):
         if not obj.target_blob_url:
             return ""
         return obj.target_blob_url.rsplit('/', 1)[-1]
+    
+
+class ProfileSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(source='user.email', read_only=True)
+    class Meta:
+        model = Profile
+        fields = ['email']

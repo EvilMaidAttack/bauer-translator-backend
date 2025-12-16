@@ -3,7 +3,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.mixins import ListModelMixin
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
@@ -14,7 +14,7 @@ from datetime import  datetime, timedelta, timezone
 
 from api.azure_ai import AzureDocumentTranslator, AzurePIIRedaction
 from api.models import LanguageCode, Profile, RedactionJob, TranslationJob
-from api.serializers import LanguageCodeSerializer, RedactionJobSerializer, TranslationJobSerializer
+from api.serializers import LanguageCodeSerializer, ProfileSerializer, RedactionJobSerializer, TranslationJobSerializer
 
 SAS_TTL_MINUTES = 60
 
@@ -191,3 +191,10 @@ class PIIRedactionViewSet(viewsets.ModelViewSet):
             job.save()
             return Response(RedactionJobSerializer(job).data, status=status.HTTP_200_OK)
 
+
+class ProfileViewSet(ListModelMixin, GenericViewSet):
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Profile.objects.filter(user=self.request.user)
