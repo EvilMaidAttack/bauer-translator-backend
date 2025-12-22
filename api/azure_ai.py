@@ -5,6 +5,7 @@ from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPerm
 from datetime import datetime, timedelta, timezone
 import requests
 import logging
+import warnings
 logging.basicConfig(level=logging.INFO)
 load_dotenv(override=True)
 
@@ -98,14 +99,12 @@ class AzureDocumentTranslator():
             ]
         }
         
-# TODO: New class to detect language from a given document => Then use in redaction
 class AzureLanguageDetector():
     def __init__(self):
         self.endpoint = os.getenv("PII_LANGUAGE_ENDPOINT")
         self.key = os.getenv("PII_LANGUAGE_KEY")
         self.region = os.getenv("PII_LANGUAGE_REGION")
     
-    # TODO: this only works synchronously for text only => we need async for docs
     def __get_payload(self):
         payload = payload = {
             "kind": "LanguageDetection",
@@ -121,10 +120,8 @@ class AzureLanguageDetector():
                 ]
             }
         }
-
     
     
-
 
 class AzurePIIRedaction():
     def __init__(self):
@@ -170,7 +167,59 @@ class AzurePIIRedaction():
         print(f"Debug info: Operation status response: {response.json()}")
         return response.json()
     
+    def get_target_blob_urls(self, operation_status: dict) -> tuple[str | None, str | None]:
+        """
+        Returns:
+            (redacted_file_url, extraction_json_url)
+        """
+        try:
+            items = operation_status.get("tasks", {}).get("items", [])
+            if not items:
+                logging.warning("No tasks items found in operation status.")
+                return None, None
+
+            results = items[0].get("results", {})
+            documents = results.get("documents", [])
+            if not documents:
+                logging.warning("No documents found in operation status.")
+                return None, None
+
+            targets = documents[0].get("targets", [])
+            if not targets:
+                logging.warning("No targets found in operation status.")
+                return None, None
+
+            redacted_url = None
+            json_url = None
+
+            for t in targets:
+                location = t.get("location", "")
+                if not location:
+                    continue
+
+                lower = location.lower()
+                if lower.endswith(".result.json"):
+                    json_url = location
+                    logging.info(f"Found extraction JSON URL: {json_url}")
+                else:
+                    # everything else is the redacted document
+                    redacted_url = location
+                    logging.info(f"Found redacted document URL: {redacted_url}")
+
+            if not redacted_url:
+                logging.warning("Redacted document URL not found.")
+            if not json_url:
+                logging.warning("Extraction JSON URL not found.")
+
+            return redacted_url, json_url
+
+        except Exception:
+            logging.exception("Error parsing Azure redaction operation status")
+            return None, None
+
     def get_target_blob_url(self, operation_status: dict) -> str:
+        """deprecated - use get_target_blob_urls instead"""
+        warnings.warn("get_target_blob_url is deprecated, use get_target_blob_urls instead", DeprecationWarning, stacklevel=2)
         try:
             tasks = operation_status.get("tasks", {}).get("items", [])
             if tasks:

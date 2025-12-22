@@ -9,7 +9,10 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.utils import timezone as django_timezone
 import requests
+import os
+import logging
 from datetime import  datetime, timedelta, timezone
+logging.basicConfig(level=logging.INFO)
 
 
 from api.azure_ai import AzureDocumentTranslator, AzurePIIRedaction
@@ -178,8 +181,8 @@ class PIIRedactionViewSet(viewsets.ModelViewSet):
                 
                 # Generate SAS only once when first succeeded and not already existing
                 if job.status == "succeeded" and not job.download_url:
-                    target_blob_url = az.get_target_blob_url(op)
-                    job.target_blob_url = target_blob_url
+                    redacted_file_url, extraction_json_url  = az.get_target_blob_urls(op)
+                    job.target_blob_url = redacted_file_url
                     job.download_url, job.download_expires_at = az.build_sas_url(job.target_blob_url, minutes_valid=SAS_TTL_MINUTES)
             job.save()
             data = RedactionJobSerializer(job).data
