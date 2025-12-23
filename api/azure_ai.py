@@ -1,5 +1,6 @@
 from urllib.parse import urlsplit
 import os
+import uuid
 from dotenv import load_dotenv
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 from datetime import datetime, timedelta, timezone
@@ -24,20 +25,20 @@ class AzureDocumentTranslator():
         print("Uploading to Azure Blob Storage...")
         source_file = self.__upload_to_blob(file, file_name)
         print(f"Uploaded to blob {source_file}")
-        
-        parts = urlsplit(source_file)
-        target_lang = self.__normalize_target(target_lang)
-        stem, ext = os.path.splitext(file_name)
-        target_file = f"{parts.scheme}://{parts.netloc}/{self.container_out}/{stem}_{target_lang}{ext}"
+    
+        target_file = self.__build_target_file_url(source_file, file_name, target_lang)
         
         request_url = f"{self.endpoint}translator/text/batch/v1.1/batches"
         headers = {'Ocp-Apim-Subscription-Key': self.key}
         payload = self.__get_payload(source_file, target_file, target_lang)
+
         print("Requesting document translation...")
         response = requests.post(request_url, headers=headers, json=payload)
         response.raise_for_status()
+
         operation_location = response.headers["operation-location"]
         print(f"Translation job scheduled. Operation location: {operation_location}")
+
         return source_file, target_file, operation_location
     
     def get_all_blobs_in_container(self, container_name):
@@ -69,7 +70,18 @@ class AzureDocumentTranslator():
         sas_url = f"{parts.scheme}://{parts.netloc}/{container}/{blob_name}?{sas}"
         #print(f"SAS URL: {sas_url} - EXPIRES at {expiry}")
         return sas_url, expiry
-            
+    
+    def __build_target_file_url(self, source_file: str, original_filename: str,  target_lang: str, prefix_len:int = 8) -> str:
+        """Builds a unique target file URL in the output container based on the source file URL and target language."""
+        parts = urlsplit(source_file)
+        normalized_lang = self.__normalize_target(target_lang)
+        job_prefix = uuid.uuid4().hex[:prefix_len]
+
+        stem, ext = os.path.splitext(original_filename)
+        target_blob_name = f"{job_prefix}/{stem}_{normalized_lang}{ext}"
+
+        return f"{parts.scheme}://{parts.netloc}/{self.container_out}/{target_blob_name}"
+
         
     
     def __upload_to_blob(self, file, name) -> str:
@@ -318,9 +330,3 @@ class AzurePIIRedaction():
         container_client = blob_client.get_container_client(self.container_in)
         blob = container_client.upload_blob(name = name, data = file, overwrite = True)  
         return blob.url
-        
-        
-        
-
-
-
