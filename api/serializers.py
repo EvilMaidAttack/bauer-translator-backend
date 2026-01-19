@@ -51,10 +51,11 @@ class RedactionJobSerializer(serializers.ModelSerializer):
         fields = ['id', 'filename', 'source_blob_url', 'target_blob_url',
                     'status', 'operation_location', 'error_message', 'created_at', 'updated_at',
                     'display_status', 'profile',
-                    'download_expires_at', 'download_url', 'target_name']
+                    'download_expires_at', 'download_url', 'entity_download_url', 'entity_expires_at', 'target_name']
+        
         read_only_fields = ['id', 'source_blob_url', 'target_blob_url', 
                             'status', 'operation_location', 'error_message', 'created_at', 'updated_at',
-                            'display_status', 'profile', 'download_expires_at', 'download_url', 'target_name']       
+                            'display_status', 'profile', 'download_expires_at', 'download_url', 'entity_download_url', 'entity_expires_at', 'target_name']       
 
     def get_display_status(self, obj):
         status_map = {

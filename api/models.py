@@ -42,5 +42,7 @@ class RedactionJob(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     download_url = models.URLField(max_length=2048, blank=True, default="")
     download_expires_at = models.DateTimeField(null=True, blank=True)
+    entity_download_url = models.URLField(max_length=2048, blank=True, default="")
+    entity_expires_at = models.DateTimeField(null=True, blank=True)
 
     

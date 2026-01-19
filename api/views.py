@@ -35,7 +35,7 @@ class TranslationJobViewSet(viewsets.ModelViewSet):
         user = self.request.user
         day_start = django_timezone.now() - timedelta(days=1)
         if user.is_staff:
-            return TranslationJob.objects.filter(created_at__gte=day_start).order_by("-created_at")
+            return TranslationJob.objects.all().order_by("-created_at")
         profile_id = Profile.objects.only("id").get(user_id=user.id)
         return TranslationJob.objects.filter(profile_id=profile_id, created_at__gte=day_start).order_by("-created_at")
   
@@ -181,9 +181,10 @@ class PIIRedactionViewSet(viewsets.ModelViewSet):
                 
                 # Generate SAS only once when first succeeded and not already existing
                 if job.status == "succeeded" and not job.download_url:
-                    redacted_file_url, extraction_json_url  = az.get_target_blob_urls(op)
+                    redacted_file_url, entities_json_url  = az.get_target_blob_urls(op)
                     job.target_blob_url = redacted_file_url
-                    job.download_url, job.download_expires_at = az.build_sas_url(job.target_blob_url, minutes_valid=SAS_TTL_MINUTES)
+                    job.download_url, job.download_expires_at = az.build_sas_url(job.target_blob_url, minutes_valid=SAS_TTL_MINUTES, as_attachment=False)
+                    job.entity_download_url, job.entity_expires_at = az.build_sas_url(entities_json_url, minutes_valid=SAS_TTL_MINUTES, as_attachment=True)
             job.save()
             data = RedactionJobSerializer(job).data
             return Response(data, status=status.HTTP_200_OK)

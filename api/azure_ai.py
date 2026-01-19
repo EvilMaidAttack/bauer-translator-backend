@@ -2,15 +2,18 @@ from urllib.parse import urlsplit
 import os
 import uuid
 from dotenv import load_dotenv
-from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
+from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions, BlobClient
 from datetime import datetime, timedelta, timezone
 import requests
 import logging
 import warnings
+import json
+
+from api.entity_processing import EntityProcessor
+
 logging.basicConfig(level=logging.INFO)
 load_dotenv(override=True)
 
-# TODO: Translation fails when target_document blob already exists in document-out container => Find a fix
 
 class AzureDocumentTranslator():
     def __init__(self):
@@ -110,7 +113,8 @@ class AzureDocumentTranslator():
                 }
             ]
         }
-        
+
+
 class AzureLanguageDetector():
     def __init__(self):
         self.endpoint = os.getenv("PII_LANGUAGE_ENDPOINT")
@@ -132,7 +136,6 @@ class AzureLanguageDetector():
                 ]
             }
         }
-    
     
 
 class AzurePIIRedaction():
@@ -179,10 +182,10 @@ class AzurePIIRedaction():
         print(f"Debug info: Operation status response: {response.json()}")
         return response.json()
     
-    def get_target_blob_urls(self, operation_status: dict) -> tuple[str | None, str | None]:
+    def get_target_blob_urls(self, operation_status: dict, process_entities=False) -> tuple[str | None, str | None]:
         """
         Returns:
-            (redacted_file_url, extraction_json_url)
+            (redacted_file_url, entities_json_url)
         """
         try:
             items = operation_status.get("tasks", {}).get("items", [])
@@ -213,6 +216,18 @@ class AzurePIIRedaction():
                 if lower.endswith(".result.json"):
                     json_url = location
                     logging.info(f"Found extraction JSON URL: {json_url}")
+                    if process_entities:
+                        logging.info("Processing extracted entities JSON...")
+                        #TODO: try: blob client from json_url -> download json -> process entities DONE -> upload processed json
+                        blob_client = self.__get_blob_from_url(json_url)
+                        try:
+                            raw = blob_client.download_blob().readall()
+                            data = json.loads(raw)
+                        except Exception as e:
+                            logging.error(f"Failed to download or parse entities JSON from {json_url}: {e}")
+                            continue
+                        aggregated_df = EntityProcessor("<blob>").load_from_dict(data).aggregate_entity_ids_by_text()
+                        logging.info(f"Aggregated {len(aggregated_df)} entities by text.") 
                 else:
                     # everything else is the redacted document
                     redacted_url = location
@@ -228,6 +243,8 @@ class AzurePIIRedaction():
         except Exception:
             logging.exception("Error parsing Azure redaction operation status")
             return None, None
+
+    
 
     def get_target_blob_url(self, operation_status: dict) -> str:
         """deprecated - use get_target_blob_urls instead"""
@@ -256,20 +273,21 @@ class AzurePIIRedaction():
         except Exception as e:
             logging.exception(f"Error parsing Azure redaction result: {str(e)}")
 
-
     
-    def build_sas_url(self, blob_url:str, minutes_valid: int = 60) -> tuple[str, datetime]:
+    def build_sas_url(self, blob_url:str, minutes_valid: int = 60, as_attachment=True) -> tuple[str, datetime]:
         parts = urlsplit(blob_url)
         path = parts.path.lstrip('/')
         container, blob_name = path.split('/', 1)
         expiry = datetime.now(timezone.utc) + timedelta(minutes=minutes_valid)
+        content_disposition = f'attachment; filename="{os.path.basename(blob_name)}"' if as_attachment else f'inline; filename="{os.path.basename(blob_name)}"'
         sas = generate_blob_sas(
             account_name=self.account_name,
             container_name=container,
             blob_name=blob_name,
             account_key=self.storage_key,
             permission=BlobSasPermissions(read=True),
-            expiry=expiry
+            expiry=expiry,
+            content_disposition=content_disposition
         )
         sas_url = f"{parts.scheme}://{parts.netloc}/{container}/{blob_name}?{sas}"
         #print(f"SAS URL: {sas_url} - EXPIRES at {expiry}")
@@ -330,3 +348,12 @@ class AzurePIIRedaction():
         container_client = blob_client.get_container_client(self.container_in)
         blob = container_client.upload_blob(name = name, data = file, overwrite = True)  
         return blob.url
+    
+    def __get_blob_from_url(self, blob_url: str) -> BlobClient:
+        parts = urlsplit(blob_url)
+        path = parts.path.lstrip('/')
+        container, blob_name = path.split('/', 1)
+        blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
+        container_client = blob_service_client.get_container_client(container)
+        blob_client = container_client.get_blob_client(blob_name)
+        return blob_client
